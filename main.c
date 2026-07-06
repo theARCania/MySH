@@ -174,8 +174,22 @@ void lsh_loop(void) {
   } while (status);
 }
 
+
+
+void print_welcome() {
+    printf("  __  __       _____ _    _ \n");
+    printf(" |  \\/  |     / ____| |  | |\n");
+    printf(" | \\  / |  _ | (___ | |__| |\n");
+    printf(" | |\\/| | | | \\___ \\|  __  |\n");
+    printf(" | |  | | |_| |___) | |  | |\n");
+    printf(" |_|  |_|\\__, |_____/|_|  |_|\n");
+    printf("          __/ |             \n");
+    printf("         |___/              \n\n");
+}
+
 int main(int argc, char *argv[])
 {
+  print_welcome();
   lsh_loop();
   return EXIT_SUCCESS;
 }
