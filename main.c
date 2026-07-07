@@ -15,17 +15,20 @@
 int MYSH_cd(char **args);
 int MYSH_help(char **args);
 int MYSH_exit(char **args);
+int MYSH_pwd(char **args);
 
 char *builtin_str[] = {
   "cd",
   "help",
-  "exit"
+  "exit",
+  "pwd"
 };
 
 int (*builtin_func[]) (char **) = {
   &MYSH_cd,
   &MYSH_help,
-  &MYSH_exit
+  &MYSH_exit,
+  &MYSH_pwd
 };
 
 int MYSH_num_builtins() {
@@ -47,7 +50,7 @@ int MYSH_cd(char **args)
 int MYSH_help(char **args)
 {
   int i;
-  printf("My own mysh\n");
+  printf("MySH\n");
   printf("Type program names and arguments, and hit enter.\n");
   printf("The following are built in:\n");
 
@@ -55,7 +58,7 @@ int MYSH_help(char **args)
     printf("  %s\n", builtin_str[i]);
   }
 
-  printf("Use the man command for information on other programs.\n");
+  //printf("Use the man command for information on other programs.\n");
   return 1;
 }
 
@@ -64,20 +67,35 @@ int MYSH_exit(char **args)
   return 0;
 }
 
+int MYSH_pwd(char **args) {
+  char cwd[MYSH_RL_BUFSIZE];
+  if (getcwd(cwd, sizeof(cwd)) != NULL) {
+    printf("%s\n", cwd);
+  } else {
+    perror("mysh");
+  }
+
+  return 1;
+}
+
+
 int MYSH_launch(char** args) {
   pid_t pid, wpid;
   int status;
   pid = fork();
 
-  struct sigaction sa_default;
-  sa_default.sa_handler = SIG_DFL;
-  sigemptyset(&sa_default.sa_mask);
-  sa_default.sa_flags = 0;
 
-  sigaction(SIGINT, &sa_default, NULL);
-  sigaction(SIGTSTP, &sa_default, NULL);
 
   if (pid == 0) {
+
+    struct sigaction sa_default;
+    sa_default.sa_handler = SIG_DFL;
+    sigemptyset(&sa_default.sa_mask);
+    sa_default.sa_flags = 0;
+
+    sigaction(SIGINT, &sa_default, NULL);
+    sigaction(SIGTSTP, &sa_default, NULL);
+
     if (execvp(args[0], args) == -1) {
       perror("mysh");
     }
