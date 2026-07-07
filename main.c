@@ -3,14 +3,18 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <signal.h>
 
-#define LSH_RL_BUFSIZE 1024
-#define LSH_TOK_BUFSIZE 64
-#define LSH_TOK_DELIM " \t\r\n\a"
+// ---------------------
+// BASIC FUNCTIONALITIES
+// ---------------------
+#define MYSH_RL_BUFSIZE 1024
+#define _BUFSIZE 64
+#define _DELIM " \t\r\n\a"
 
-int lsh_cd(char **args);
-int lsh_help(char **args);
-int lsh_exit(char **args);
+int MYSH_cd(char **args);
+int MYSH_help(char **args);
+int MYSH_exit(char **args);
 
 char *builtin_str[] = {
   "cd",
@@ -19,35 +23,35 @@ char *builtin_str[] = {
 };
 
 int (*builtin_func[]) (char **) = {
-  &lsh_cd,
-  &lsh_help,
-  &lsh_exit
+  &MYSH_cd,
+  &MYSH_help,
+  &MYSH_exit
 };
 
-int lsh_num_builtins() {
+int MYSH_num_builtins() {
   return sizeof(builtin_str) / sizeof(char *);
 }
 
-int lsh_cd(char **args)
+int MYSH_cd(char **args)
 {
   if (args[1] == NULL) {
-    fprintf(stderr, "lsh: expected argument to \"cd\"\n");
+    fprintf(stderr, "mysh: expected argument to \"cd\"\n");
   } else {
     if (chdir(args[1]) != 0) {
-      perror("lsh");
+      perror("mysh");
     }
   }
   return 1;
 }
 
-int lsh_help(char **args)
+int MYSH_help(char **args)
 {
   int i;
-  printf("My own LSH\n");
+  printf("My own mysh\n");
   printf("Type program names and arguments, and hit enter.\n");
   printf("The following are built in:\n");
 
-  for (i = 0; i < lsh_num_builtins(); i++) {
+  for (i = 0; i < MYSH_num_builtins(); i++) {
     printf("  %s\n", builtin_str[i]);
   }
 
@@ -55,22 +59,31 @@ int lsh_help(char **args)
   return 1;
 }
 
-int lsh_exit(char **args)
+int MYSH_exit(char **args)
 {
   return 0;
 }
 
-int lsh_launch(char** args) {
+int MYSH_launch(char** args) {
   pid_t pid, wpid;
   int status;
   pid = fork();
+
+  struct sigaction sa_default;
+  sa_default.sa_handler = SIG_DFL;
+  sigemptyset(&sa_default.sa_mask);
+  sa_default.sa_flags = 0;
+
+  sigaction(SIGINT, &sa_default, NULL);
+  sigaction(SIGTSTP, &sa_default, NULL);
+
   if (pid == 0) {
     if (execvp(args[0], args) == -1) {
-      perror("lsh");
+      perror("mysh");
     }
     exit(EXIT_FAILURE);
   } else if (pid < 0) {
-      perror("lsh");
+      perror("mysh");
   } else {
       do {
         wpid = waitpid(pid, &status, WUNTRACED);
@@ -79,7 +92,7 @@ int lsh_launch(char** args) {
   return 1;
 }
 
-int lsh_execute(char **args)
+int MYSH_execute(char **args)
 {
   int i;
 
@@ -87,53 +100,53 @@ int lsh_execute(char **args)
     return 1;
   }
 
-  for (i = 0; i < lsh_num_builtins(); i++) {
+  for (i = 0; i < MYSH_num_builtins(); i++) {
     if (strcmp(args[0], builtin_str[i]) == 0) {
       return (*builtin_func[i])(args);
     }
   }
 
-  return lsh_launch(args);
+  return MYSH_launch(args);
 }
 
-char **lsh_split_line(char *line)
+char **MYSH_split_line(char *line)
 {
-  int bufsize = LSH_TOK_BUFSIZE, position = 0;
+  int bufsize = _BUFSIZE, position = 0;
   char **tokens = malloc(bufsize * sizeof(char*));
   char *token;
 
   if (!tokens) {
-    fprintf(stderr, "lsh: allocation error\n");
+    fprintf(stderr, "mysh: allocation error\n");
     exit(EXIT_FAILURE);
   }
 
-  token = strtok(line, LSH_TOK_DELIM);
+  token = strtok(line, _DELIM);
   while (token != NULL) {
     tokens[position++] = token;
     
     if (position >= bufsize) {
-      bufsize  += LSH_TOK_BUFSIZE;
+      bufsize  += _BUFSIZE;
       tokens = realloc(tokens, bufsize * sizeof(char*));
       if (!tokens) {
-        fprintf(stderr, "lsh: allocation error\n");
+        fprintf(stderr, "mysh: allocation error\n");
         exit(EXIT_FAILURE);
       }
     }
-    token = strtok(NULL, LSH_TOK_DELIM);
+    token = strtok(NULL, _DELIM);
   }
   tokens[position] = NULL;
   return tokens;
 }
 
-char *lsh_read_line(void)
+char *MYSH_read_line(void)
 {
-  int bufsize = LSH_RL_BUFSIZE;
+  int bufsize = MYSH_RL_BUFSIZE;
   int position = 0;
   char *buffer = malloc(sizeof(char) * bufsize);
   int c;
 
   if (!buffer) {
-    fprintf(stderr, "lsh: allocation error\n");
+    fprintf(stderr, "mysh: allocation error\n");
     exit(EXIT_FAILURE);
   }
 
@@ -148,26 +161,26 @@ char *lsh_read_line(void)
     position++;
 
     if (position >= bufsize) {
-      bufsize += LSH_RL_BUFSIZE;
+      bufsize += MYSH_RL_BUFSIZE;
       buffer = realloc(buffer, bufsize);
       if (!buffer) {
-        fprintf(stderr, "lsh: allocation error\n");
+        fprintf(stderr, "mysh: allocation error\n");
         exit(EXIT_FAILURE);
       }
     }
   }
 }
 
-void lsh_loop(void) {
+void MYSH_loop(void) {
   char *line;
   char **args;
   int status;
 
   do {
     printf(">> ");
-    line = lsh_read_line();
-    args = lsh_split_line(line);
-    status = lsh_execute(args);
+    line = MYSH_read_line();
+    args = MYSH_split_line(line);
+    status = MYSH_execute(args);
     
     free(line);
     free(args);
@@ -175,6 +188,16 @@ void lsh_loop(void) {
 }
 
 
+// ---------------------
+// SIGNAL HANDLING
+// ---------------------
+
+
+
+
+// ---------------------
+// MAIN LOOP
+// ---------------------
 
 void print_welcome() {
     printf("  __  __       _____ _    _ \n");
@@ -189,7 +212,13 @@ void print_welcome() {
 
 int main(int argc, char *argv[])
 {
+  struct sigaction sa_ignore;
+  sa_ignore.sa_handler = SIG_IGN;
+  sigemptyset(&sa_ignore.sa_mask);
+  sa_ignore.sa_flags = 0;
+  sigaction(SIGINT, &sa_ignore, NULL);
+  sigaction(SIGTSTP, &sa_ignore, NULL);
   print_welcome();
-  lsh_loop();
+  MYSH_loop();
   return EXIT_SUCCESS;
 }
