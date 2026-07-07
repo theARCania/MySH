@@ -4,10 +4,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <signal.h>
+#include <fcntl.h>
 
-// ---------------------
-// BASIC FUNCTIONALITIES
-// ---------------------
+
 #define MYSH_RL_BUFSIZE 1024
 #define _BUFSIZE 64
 #define _DELIM " \t\r\n\a"
@@ -82,12 +81,30 @@ int MYSH_pwd(char **args) {
 int MYSH_launch(char** args) {
   pid_t pid, wpid;
   int status;
+  // i/o redirection
+  char *in_file = NULL;
+  char *out_file = NULL;
+  int i = 0;
+
+  while (args[i] != NULL) {
+    if (strcmp(args[i], ">") == 0) {
+      out_file = args[i + 1];
+      args[i] = NULL;
+      break;
+    }
+    if (strcmp(args[i], "<") == 0) {
+      in_file = args[i + 1];
+      args[i] = NULL;
+      break;
+    }
+    i++;
+  }
+
+
   pid = fork();
 
-
-
   if (pid == 0) {
-
+    // signal handling
     struct sigaction sa_default;
     sa_default.sa_handler = SIG_DFL;
     sigemptyset(&sa_default.sa_mask);
@@ -95,6 +112,27 @@ int MYSH_launch(char** args) {
 
     sigaction(SIGINT, &sa_default, NULL);
     sigaction(SIGTSTP, &sa_default, NULL);
+    // i/o redirection
+    if (in_file != NULL) {
+      int fd_in = open(in_file, O_RDONLY);
+      if (fd_in == -1) {
+        perror("mysh");
+        exit(EXIT_FAILURE);
+      }
+      dup2(fd_in, STDIN_FILENO);
+      close(fd_in);
+    }
+    if (out_file != NULL) {
+      int fd_out = open(out_file, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+      if (fd_out == -1) {
+        perror("mysh");
+        exit(EXIT_FAILURE);
+      }
+      dup2(fd_out, STDOUT_FILENO);
+      close(fd_out);
+    }
+
+
 
     if (execvp(args[0], args) == -1) {
       perror("mysh");
@@ -205,10 +243,6 @@ void MYSH_loop(void) {
   } while (status);
 }
 
-
-// ---------------------
-// SIGNAL HANDLING
-// ---------------------
 
 
 
