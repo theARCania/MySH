@@ -79,12 +79,79 @@ int MYSH_pwd(char **args) {
 
 
 int MYSH_launch(char** args) {
-  pid_t pid, wpid;
-  int status;
-  // i/o redirection
+  int i = 0;
+  int pipe_idx = -1;
+
+  while (args[i] != NULL) {
+    if (strcmp(args[i], "|") == 0) {
+      pipe_idx = i;
+      break;
+    }
+    i++;
+  }
+
+  if (pipe_idx != -1) {
+    args[pipe_idx] = NULL;
+    char **cmd2 = &args[pipe_idx + 1];
+
+    int fd[2];
+    if (pipe(fd) == -1) {
+      perror("mysh");
+      return 1;
+    }
+
+    pid_t pid1, pid2;
+
+    pid1 = fork();
+    if (pid1 == 0) {
+      struct sigaction sa_default;
+      sa_default.sa_handler = SIG_DFL;
+      sigemptyset(&sa_default.sa_mask);
+      sa_default.sa_flags = 0;
+      sigaction(SIGINT, &sa_default, NULL);
+      sigaction(SIGTSTP, &sa_default, NULL);
+
+      dup2(fd[1], STDOUT_FILENO);
+      close(fd[0]);
+      close(fd[1]);
+
+      if (execvp(args[0], args) == -1) {
+        perror("mysh");
+        exit(EXIT_FAILURE);
+      }
+    }
+
+    pid2 = fork();
+    if (pid2 == 0) {
+      struct sigaction sa_default;
+      sa_default.sa_handler = SIG_DFL;
+      sigemptyset(&sa_default.sa_mask);
+      sa_default.sa_flags = 0;
+      sigaction(SIGINT, &sa_default, NULL);
+      sigaction(SIGTSTP, &sa_default, NULL);
+
+      dup2(fd[0], STDIN_FILENO);
+      close(fd[1]);
+      close(fd[0]);
+
+      if (execvp(cmd2[0], cmd2) == -1) {
+        perror("mysh");
+        exit(EXIT_FAILURE);
+      }
+    }
+
+    close(fd[0]);
+    close(fd[1]);
+
+    waitpid(pid1, NULL, 0);
+    waitpid(pid2, NULL, 0);
+
+    return 1;
+  }
+
   char *in_file = NULL;
   char *out_file = NULL;
-  int i = 0;
+  i = 0;
 
   while (args[i] != NULL) {
     if (strcmp(args[i], ">") == 0) {
@@ -100,19 +167,18 @@ int MYSH_launch(char** args) {
     i++;
   }
 
-
+  pid_t pid, wpid;
+  int status;
   pid = fork();
 
   if (pid == 0) {
-    // signal handling
     struct sigaction sa_default;
     sa_default.sa_handler = SIG_DFL;
     sigemptyset(&sa_default.sa_mask);
     sa_default.sa_flags = 0;
-
     sigaction(SIGINT, &sa_default, NULL);
     sigaction(SIGTSTP, &sa_default, NULL);
-    // i/o redirection
+
     if (in_file != NULL) {
       int fd_in = open(in_file, O_RDONLY);
       if (fd_in == -1) {
@@ -132,19 +198,18 @@ int MYSH_launch(char** args) {
       close(fd_out);
     }
 
-
-
     if (execvp(args[0], args) == -1) {
       perror("mysh");
     }
     exit(EXIT_FAILURE);
   } else if (pid < 0) {
-      perror("mysh");
+    perror("mysh");
   } else {
-      do {
-        wpid = waitpid(pid, &status, WUNTRACED);
-      } while (!WIFEXITED(status) && !WIFSIGNALED(status));
-    }
+    do {
+      wpid = waitpid(pid, &status, WUNTRACED);
+    } while (!WIFEXITED(status) && !WIFSIGNALED(status));
+  }
+
   return 1;
 }
 
